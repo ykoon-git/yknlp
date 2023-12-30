@@ -1,0 +1,69 @@
+Resources:
+  testbucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-testbucke-${AWS::AccountId}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: alias/aws/s3
+      PublicAccessBlockConfiguration:
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+  testbucketBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref testbucket
+      PolicyDocument:
+        Id: RequireEncryptionInTransit
+        Version: '2012-10-17'
+        Statement:
+          - Principal: '*'
+            Action: '*'
+            Effect: Deny
+            Resource:
+              - !GetAtt testbucket.Arn
+              - !Sub ${testbucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+  VPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: vpcnewid
+      ServiceName: com.amazonaws.region.s3
+      RouteTableIds:
+        - !Ref PublicRouteTable
+  vpcnewid:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: Primary_VPC
+Metadata:
+  AWS::Composer::ExternalResources:
+    ExternalRDS:
+      Type: externalRDS
+      Settings:
+        Port: !Ref ExternalRDSPort
+        Hostname: !Ref ExternalRDSHostname
+        SecretArn: !Ref ExternalRDSSecretArn
+  AWS::Composer::Groups:
+    Group:
+      Label: Default VPC
+      Members:
+        - VPCEndpoint
+        - vpcnewid
+        - ExternalRDS
+Parameters:
+  ExternalRDSPort:
+    Type: Number
+  ExternalRDSHostname:
+    Type: String
+  ExternalRDSSecretArn:
+    Type: String
